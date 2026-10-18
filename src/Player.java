@@ -20,24 +20,29 @@ public class Player {
     addKeys();
   }
 
+  public float getX(){return x;}
+    public float getY(){return y;}
+    public float getDx(){return Dx;}
+    public float getDy(){return Dy;}
+
   public void update() {
     move();
 
     if (keyMap.get(KeyEvent.VK_DOWN)) {
       direction = 180;
-      Dy += 0.5f;
+      Dy += Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
     }
     if (keyMap.get(KeyEvent.VK_UP)) {
       direction = 0;
-      Dy -= 0.5f;
+      Dy -= Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
     }
     if (keyMap.get(KeyEvent.VK_RIGHT)) {
       direction = 90;
-      Dx += 0.5f;
+      Dx += Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
     }
     if (keyMap.get(KeyEvent.VK_LEFT)) {
       direction = 270;
-      Dx -= 0.5f;
+      Dx -= Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
     }
   }
 
@@ -51,11 +56,11 @@ public class Player {
   }
 
   private void move() {
-    Dx *= 0.9f;
-    Dy *= 0.9f;
+    Dx *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
+    Dy *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
 
-    if (Math.abs(Dx) < 0.001f) Dx = 0;
-    if (Math.abs(Dy) < 0.001f) Dy = 0;
+    if (Math.abs(Dx) < 0.01f) Dx = 0;
+    if (Math.abs(Dy) < 0.01f) Dy = 0;
 
     // cap the total magnitude of the velocity vector
     float currentSpeed = (float) Math.sqrt((Dx * Dx) + (Dy * Dy));
@@ -72,7 +77,9 @@ public class Player {
   }
 
   public void interact() {
-    // FIXME: use the direction to interact with what is in front of the guy
+    Dy *= -1.5f;
+    Dx *= -1.5f;
+
   }
 
   public int getDirection() {

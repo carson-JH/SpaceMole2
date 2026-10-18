@@ -16,9 +16,7 @@ public class Vector2 {
     y *= s;
   }
 
-  public float length() {
-    return (float) Math.sqrt(x * x + y * y);
-  }
+  public float length() {return (float) Math.sqrt(x * x + y * y);}
 
   public void normalize() {
     float len = length();
