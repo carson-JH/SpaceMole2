@@ -11,6 +11,8 @@ public class Player {
   private float Dx;
   private float Dy;
 
+  private int collectedResources = 0;
+
   private int direction = 90; // clockwise (90 is to the right)
 
   HashMap<Integer, Boolean> keyMap;
@@ -36,28 +38,57 @@ public class Player {
     return Dy;
   }
 
-  public void update() {
+  public void setX(float x) {
+    this.x = x;
+  }
+
+  public void setY(float y) {
+    this.y = y;
+  }
+
+  public void setDx(float Dx) {
+    this.Dx = Dx;
+  }
+
+  public void setDy(float Dy) {
+    this.Dy = Dy;
+  }
+
+  public int getCollectedResources() {
+    return collectedResources;
+  }
+
+  public void updateVelocity() {
+    float resourceSpeedMult = (float) (1.0 - (0.10 * Math.log(collectedResources + 1)));
+    resourceSpeedMult = Math.max(0.2f, resourceSpeedMult);
+    float speedIncrease = Constants.PlayerConstants.PLAYER_SPEED_INCREASE * resourceSpeedMult;
 
     if (keyMap.get(KeyEvent.VK_DOWN)) {
       direction = 180;
       if (!checkDownCollision()) {
-        Dy += Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
+        Dy += speedIncrease;
       }
     }
     if (keyMap.get(KeyEvent.VK_UP)) {
       direction = 0;
-      Dy -= Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
+      Dy -= speedIncrease;
     }
     if (keyMap.get(KeyEvent.VK_RIGHT)) {
       direction = 90;
-      Dx += Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
+      Dx += speedIncrease;
     }
     if (keyMap.get(KeyEvent.VK_LEFT)) {
       direction = 270;
-      Dx -= Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
+      Dx -= speedIncrease;
     }
+  }
 
-    move();
+  public void addResources(int numOfResources) {
+    collectedResources += numOfResources;
+  }
+
+  public boolean isSpacePressed() {
+    return keyMap.getOrDefault(KeyEvent.VK_SPACE, false);
   }
 
   public void draw(Graphics g) {
@@ -69,7 +100,7 @@ public class Player {
         Constants.PlayerConstants.PLAYER_HEIGHT);
   }
 
-  private void move() {
+  public void applyMovement() {
     Dx *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
     Dy *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
 
@@ -179,6 +210,7 @@ public class Player {
         case KeyEvent.VK_UP -> keyMap.put(KeyEvent.VK_UP, true);
         case KeyEvent.VK_LEFT -> keyMap.put(KeyEvent.VK_LEFT, true);
         case KeyEvent.VK_RIGHT -> keyMap.put(KeyEvent.VK_RIGHT, true);
+        case KeyEvent.VK_SPACE -> keyMap.put(KeyEvent.VK_SPACE, true);
       }
     }
 
@@ -189,6 +221,7 @@ public class Player {
         case KeyEvent.VK_UP -> keyMap.put(KeyEvent.VK_UP, false);
         case KeyEvent.VK_LEFT -> keyMap.put(KeyEvent.VK_LEFT, false);
         case KeyEvent.VK_RIGHT -> keyMap.put(KeyEvent.VK_RIGHT, false);
+        case KeyEvent.VK_SPACE -> keyMap.put(KeyEvent.VK_SPACE, false);
       }
     }
   }

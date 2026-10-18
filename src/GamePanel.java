@@ -95,9 +95,11 @@ public class GamePanel extends JPanel implements ActionListener {
 
   public void draw(Graphics g) {
     drawUnderground(g);
+    drawBase(g);
     drawGrid(g);
     resourceManager.draw(g);
     player.draw(g);
+    drawResourceCounter(g);
   }
 
   public void drawUnderground(Graphics g) {
@@ -140,7 +142,41 @@ public class GamePanel extends JPanel implements ActionListener {
     }
   }
 
+  public void drawResourceCounter(Graphics g) {
+    g.setFont(new Font("Arial", Font.BOLD, Constants.PlayerConstants.RESOURCE_FONT_SIZE));
+    g.setColor(Color.BLACK);
+    g.drawString(
+        "Collected Resources: " + player.getCollectedResources(),
+        Constants.PlayerConstants.RESOURCE_COUNTER_X,
+        Constants.PlayerConstants.RESOURCE_COUNTER_Y);
+  }
+
+  public void drawBase(Graphics g) {
+    Graphics2D g2d = (Graphics2D) g;
+
+    g2d.setStroke(new BasicStroke(3));
+    g2d.setColor(new Color(100, 110, 130)); // Metallic blue-grey
+
+    int x = Constants.MapConstants.DOME_X;
+    int y = Constants.MapConstants.DOME_Y;
+    int w = Constants.MapConstants.DOME_WIDTH;
+    int h = Constants.MapConstants.DOME_HEIGHT;
+
+    // Draw Left Wall
+    g2d.drawLine(x, y, x, y + h);
+
+    // Draw Right Wall
+    g2d.drawLine(x + w, y, x + w, y + h);
+
+    // Draw Top Ceiling
+    g2d.drawLine(x, y, x + w, y);
+
+    // Reset stroke thickness back to default 1px
+    g2d.setStroke(new BasicStroke(1));
+  }
+
   private void checkMiningCollisions() {
+    // 1. Predict player bounding box for next frame
     float nextX = player.getX() + player.getDx();
     float nextY = player.getY() + player.getDy();
 
@@ -212,9 +248,72 @@ public class GamePanel extends JPanel implements ActionListener {
     }
   }
 
+  private void checkBaseCollisions() {
+    float bLeft = Constants.MapConstants.DOME_X;
+    float bRight = Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH;
+    float bTop = Constants.MapConstants.DOME_Y;
+    float bBottom = Constants.MapConstants.DOME_Y + Constants.MapConstants.DOME_HEIGHT;
+    float pWidth = Constants.PlayerConstants.PLAYER_WIDTH;
+    float pHeight = Constants.PlayerConstants.PLAYER_HEIGHT;
+
+    // Horizontal resolution
+    float nextX = player.getX() + player.getDx();
+    float pY = player.getY();
+
+    // Only process wall collisions if the player is vertically alongside the base
+    if (pY + pHeight > bTop && pY < bBottom) {
+
+      // LEFT WALL - Hitting from outside (moving right)
+      if (player.getX() + pWidth <= bLeft && nextX + pWidth > bLeft) {
+        player.setX(bLeft - pWidth);
+        player.setDx(0);
+      }
+      // LEFT WALL - Hitting from inside (moving left)
+      else if (player.getX() >= bLeft && nextX < bLeft) {
+        player.setX(bLeft);
+        player.setDx(0);
+      }
+      // RIGHT WALL - Hitting from outside (moving left)
+      else if (player.getX() >= bRight && nextX < bRight) {
+        player.setX(bRight);
+        player.setDx(0);
+      }
+      // RIGHT WALL - Hitting from inside (moving right)
+      else if (player.getX() + pWidth <= bRight && nextX + pWidth > bRight) {
+        player.setX(bRight - pWidth);
+        player.setDx(0);
+      }
+    }
+
+    // Vertical resolution
+    float pX = player.getX(); // Use updated X after horizontal checks
+    float nextY = player.getY() + player.getDy();
+
+    if (pX + pWidth > bLeft && pX < bRight) {
+
+      if (player.getY() + pHeight <= bTop && nextY + pHeight > bTop) {
+        player.setY(bTop - pHeight);
+        player.setDy(0);
+      } else if (player.getY() >= bTop && nextY < bTop) {
+        player.setY(bTop);
+        player.setDy(0);
+      }
+    }
+  }
+
+  public void checkResourcePickup() {
+    if (player.isSpacePressed()) {
+      int collected = resourceManager.collectNearbyOrbs(player.getX(), player.getY());
+      if (collected > 0) player.addResources(collected);
+    }
+  }
+
   private void updateGame() {
+    player.updateVelocity();
     checkMiningCollisions();
-    player.update();
+    checkBaseCollisions();
+    player.applyMovement();
+    checkResourcePickup();
     resourceManager.update(undergroundMap);
   }
 
