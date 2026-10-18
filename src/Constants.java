@@ -7,6 +7,8 @@ public class Constants {
     public static final float PLAYER_SPEED_INCREASE = 0.65f;
     public static final float MAX_PLAYER_SPEED = 5.0f;
     public static final float IDLE_PLAYER_SPEED_MULT = 0.85f;
+    public static final float PLAYER_GRAVITY = ResourceConstants.GRAVITY;
+    public static final float MAX_PLAYER_FALL_SPEED = ResourceConstants.MAX_FALL_SPEED;
   }
 
   public static class MapConstants {

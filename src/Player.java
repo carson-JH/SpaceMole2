@@ -20,17 +20,29 @@ public class Player {
     addKeys();
   }
 
-  public float getX(){return x;}
-    public float getY(){return y;}
-    public float getDx(){return Dx;}
-    public float getDy(){return Dy;}
+  public float getX() {
+    return x;
+  }
+
+  public float getY() {
+    return y;
+  }
+
+  public float getDx() {
+    return Dx;
+  }
+
+  public float getDy() {
+    return Dy;
+  }
 
   public void update() {
-    move();
 
     if (keyMap.get(KeyEvent.VK_DOWN)) {
       direction = 180;
-      Dy += Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
+      if (!checkDownCollision()) {
+        Dy += Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
+      }
     }
     if (keyMap.get(KeyEvent.VK_UP)) {
       direction = 0;
@@ -44,6 +56,8 @@ public class Player {
       direction = 270;
       Dx -= Constants.PlayerConstants.PLAYER_SPEED_INCREASE;
     }
+
+    move();
   }
 
   public void draw(Graphics g) {
@@ -58,6 +72,12 @@ public class Player {
   private void move() {
     Dx *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
     Dy *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
+
+    if (!checkDownCollision() || keyMap.get(KeyEvent.VK_DOWN)) {
+      Dy += Constants.PlayerConstants.PLAYER_GRAVITY;
+      if (Dy > Constants.PlayerConstants.MAX_PLAYER_FALL_SPEED)
+        Dy = Constants.PlayerConstants.MAX_PLAYER_FALL_SPEED;
+    }
 
     if (Math.abs(Dx) < 0.01f) Dx = 0;
     if (Math.abs(Dy) < 0.01f) Dy = 0;
@@ -79,11 +99,61 @@ public class Player {
   public void interact() {
     Dy *= -1.5f;
     Dx *= -1.5f;
+  }
 
+  /**
+   * Returns the Block directly beneath the player's feet (one tile under the tile that currently
+   * contains the player's feet). Returns null if out of bounds or map is null.
+   */
+  private Block getBlockDirectlyBelow(Block[][] map) {
+    float footY = y + Constants.PlayerConstants.PLAYER_HEIGHT;
+
+    // grid X is based on the player's horizontal center
+    int gx =
+        (int)
+            Math.floor(
+                (x + Constants.PlayerConstants.PLAYER_WIDTH / 2f)
+                    / Constants.MapConstants.UNIT_SIZE);
+
+    // grid Y for the tile containing the feet
+    int gy =
+        (int)
+            Math.floor(
+                (footY - (Constants.MapConstants.SCREEN_HEIGHT / 2f))
+                    / Constants.MapConstants.UNIT_SIZE);
+
+    // the tile directly below the feet
+    int belowGy = gy + 1;
+
+    if (map == null) return null;
+    if (gx >= 0 && gx < map.length && belowGy >= 0 && belowGy < map[0].length) {
+      return map[gx][belowGy];
+    }
+    return null;
+  }
+
+  //  public int[] getTileBelowIndices() {
+  //    float footY = y + Constants.PlayerConstants.PLAYER_HEIGHT;
+  //    int gx = (int) Math.floor((x + Constants.PlayerConstants.PLAYER_WIDTH / 2f) /
+  // Constants.MapConstants.UNIT_SIZE);
+  //    int gy = (int) Math.floor((footY - (Constants.MapConstants.SCREEN_HEIGHT / 2f)) /
+  // Constants.MapConstants.UNIT_SIZE);
+  //    return new int[] {gx, gy + 1};
+  //  }
+
+  private boolean checkDownCollision() {
+    if (getBlockDirectlyBelow(GamePanel.undergroundMap) == null) return false;
+    return (getBlockDirectlyBelow(GamePanel.undergroundMap).getState() == BlockState.ORE
+            || getBlockDirectlyBelow(GamePanel.undergroundMap).getState() == BlockState.STONE)
+        && !keyMap.get(KeyEvent.VK_UP);
   }
 
   public int getDirection() {
     return direction;
+  }
+
+  public boolean isKeyPressed(int keyCode) {
+    return keyMap.getOrDefault(keyCode, false);
   }
 
   public double[] getPosition() {

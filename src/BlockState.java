@@ -1,5 +1,6 @@
 public enum BlockState {
   AIR,
   ORE,
-  STONE
+  STONE,
+  LADDER
 }
