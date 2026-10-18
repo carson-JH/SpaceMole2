@@ -7,7 +7,7 @@ public class Constants {
     public static final float PLAYER_SPEED_INCREASE = 0.85f;
     public static final float MAX_PLAYER_SPEED = 6.0f;
     public static final float IDLE_PLAYER_SPEED_MULT = 0.85f;
-    public static final float PLAYER_GRAVITY = ResourceConstants.GRAVITY;
+    public static final float PLAYER_GRAVITY = 0; // set to aero for now
     public static final float MAX_PLAYER_FALL_SPEED = ResourceConstants.MAX_FALL_SPEED;
     public static final float PICKUP_RADIUS = 40.0f;
     public static final int RESOURCE_FONT_SIZE = 18;
