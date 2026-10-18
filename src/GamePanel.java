@@ -11,6 +11,7 @@ import javax.swing.*;
 public class GamePanel extends JPanel implements ActionListener {
 
   private Player player;
+  private ResourceManager resourceManager;
   // Class variables
   BufferedImage stoneImage;
   BufferedImage oreImage;
@@ -41,6 +42,7 @@ public class GamePanel extends JPanel implements ActionListener {
 
     player = new Player();
     player.addListener(this);
+    resourceManager = new ResourceManager();
 
     loadTextures();
     startGame();
@@ -95,6 +97,7 @@ public class GamePanel extends JPanel implements ActionListener {
   public void draw(Graphics g) {
     drawUnderground(g);
     drawGrid(g);
+    resourceManager.draw(g);
     player.draw(g);
   }
 
@@ -160,7 +163,11 @@ public class GamePanel extends JPanel implements ActionListener {
                     Block block = undergroundMap[gx][gy];
 
                     if (block.getState() != BlockState.AIR) {
+                        BlockState before = block.getState();
                         block.takeDamage(1);
+                        if (before == BlockState.ORE && block.getState() == BlockState.AIR) {
+                            resourceManager.spawnFromBrokenOre(gx, gy);
+                        }
                         hitBlock = true;
                     }
                 }
@@ -176,8 +183,7 @@ public class GamePanel extends JPanel implements ActionListener {
   private void updateGame() {
     checkMiningCollisions();
     player.update();
-
-
+    resourceManager.update(undergroundMap);
   }
 
   @Override
