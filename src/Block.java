@@ -1,5 +1,6 @@
 public class Block {
     private int health;
+    private int maxHealth;
     private BlockState state;
 
     public Block(BlockState state){
@@ -8,12 +9,13 @@ public class Block {
             case STONE -> this.health = Constants.MapConstants.STONE_HEALTH;
             case AIR -> this.health = 0;
         }
-
+        this.maxHealth = this.health;
         this.state = state;
     }
 
     public BlockState getState(){return this.state;}
     public int getHealth(){return this.health;}
+    public int getMaxHealth(){return this.maxHealth;}
 
 
     public void takeDamage(int damage){

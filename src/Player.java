@@ -17,9 +17,23 @@ public class Player {
 
   HashMap<Integer, Boolean> keyMap;
 
+  private boolean upgradePressed;
+  private boolean restartPressed;
+
   public Player() {
     keyMap = new HashMap<>();
     addKeys();
+    reset();
+  }
+
+  public void reset() {
+    x = Constants.MapConstants.DOME_X + 12;
+    y = Constants.MapConstants.SURFACE_Y - Constants.PlayerConstants.PLAYER_HEIGHT;
+    Dx = 0;
+    Dy = 0;
+    collectedResources = 0;
+    upgradePressed = false;
+    restartPressed = false;
   }
 
   public float getX() {
@@ -87,6 +101,24 @@ public class Player {
     collectedResources += numOfResources;
   }
 
+  public boolean spendResources(int amount) {
+    if (collectedResources < amount) return false;
+    collectedResources -= amount;
+    return true;
+  }
+
+  public boolean consumeUpgradePressed() {
+    if (!upgradePressed) return false;
+    upgradePressed = false;
+    return true;
+  }
+
+  public boolean consumeRestartPressed() {
+    if (!restartPressed) return false;
+    restartPressed = false;
+    return true;
+  }
+
   public boolean isSpacePressed() {
     return keyMap.getOrDefault(KeyEvent.VK_SPACE, false);
   }
@@ -104,7 +136,8 @@ public class Player {
     Dx *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
     Dy *= Constants.PlayerConstants.IDLE_PLAYER_SPEED_MULT;
 
-    if (!checkDownCollision() || keyMap.get(KeyEvent.VK_DOWN)) {
+    boolean holdingUp = keyMap.getOrDefault(KeyEvent.VK_UP, false);
+    if ((!checkDownCollision() && !holdingUp) || keyMap.get(KeyEvent.VK_DOWN)) {
       Dy += Constants.PlayerConstants.PLAYER_GRAVITY;
       if (Dy > Constants.PlayerConstants.MAX_PLAYER_FALL_SPEED)
         Dy = Constants.PlayerConstants.MAX_PLAYER_FALL_SPEED;
@@ -125,11 +158,42 @@ public class Player {
 
     x += Dx;
     y += Dy;
+    clampToWorld();
+  }
+
+  private void clampToWorld() {
+    if (x < 0) {
+      x = 0;
+      Dx = 0;
+    }
+    int maxX = Constants.MapConstants.SCREEN_WIDTH - Constants.PlayerConstants.PLAYER_WIDTH;
+    if (x > maxX) {
+      x = maxX;
+      Dx = 0;
+    }
+    if (y < 0) {
+      y = 0;
+      Dy = 0;
+    }
+    int maxY = Constants.MapConstants.SCREEN_HEIGHT - Constants.PlayerConstants.PLAYER_HEIGHT;
+    if (y > maxY) {
+      y = maxY;
+      Dy = 0;
+    }
   }
 
   public void interact() {
-    Dy *= -1.5f;
-    Dx *= -1.5f;
+    float knock = 1.2f;
+    switch (direction) {
+      case 0 -> Dy = knock;
+      case 180 -> Dy = -knock;
+      case 90 -> Dx = -knock;
+      case 270 -> Dx = knock;
+      default -> {
+        Dy *= -1.1f;
+        Dx *= -1.1f;
+      }
+    }
   }
 
   /**
@@ -137,28 +201,22 @@ public class Player {
    * contains the player's feet). Returns null if out of bounds or map is null.
    */
   private Block getBlockDirectlyBelow(Block[][] map) {
-    float footY = y + Constants.PlayerConstants.PLAYER_HEIGHT;
+    if (map == null) return null;
 
-    // grid X is based on the player's horizontal center
+    float footY = y + Constants.PlayerConstants.PLAYER_HEIGHT;
     int gx =
         (int)
             Math.floor(
                 (x + Constants.PlayerConstants.PLAYER_WIDTH / 2f)
                     / Constants.MapConstants.UNIT_SIZE);
-
-    // grid Y for the tile containing the feet
     int gy =
         (int)
             Math.floor(
-                (footY - (Constants.MapConstants.SCREEN_HEIGHT / 2f))
+                (footY + 1f - (Constants.MapConstants.SCREEN_HEIGHT / 2f))
                     / Constants.MapConstants.UNIT_SIZE);
 
-    // the tile directly below the feet
-    int belowGy = gy + 1;
-
-    if (map == null) return null;
-    if (gx >= 0 && gx < map.length && belowGy >= 0 && belowGy < map[0].length) {
-      return map[gx][belowGy];
+    if (gx >= 0 && gx < map.length && gy >= 0 && gy < map[0].length) {
+      return map[gx][gy];
     }
     return null;
   }
@@ -173,6 +231,13 @@ public class Player {
   //  }
 
   private boolean checkDownCollision() {
+    float footY = y + Constants.PlayerConstants.PLAYER_HEIGHT;
+    boolean onSurface =
+        y < Constants.MapConstants.SURFACE_Y
+            && footY <= Constants.MapConstants.SURFACE_Y + 1.5f
+            && !keyMap.get(KeyEvent.VK_DOWN);
+    if (onSurface) return true;
+
     if (getBlockDirectlyBelow(GamePanel.undergroundMap) == null) return false;
     return (getBlockDirectlyBelow(GamePanel.undergroundMap).getState() == BlockState.ORE
             || getBlockDirectlyBelow(GamePanel.undergroundMap).getState() == BlockState.STONE)
@@ -196,6 +261,8 @@ public class Player {
     keyMap.put(KeyEvent.VK_RIGHT, false);
     keyMap.put(KeyEvent.VK_UP, false);
     keyMap.put(KeyEvent.VK_DOWN, false);
+    keyMap.put(KeyEvent.VK_SPACE, false);
+    keyMap.put(KeyEvent.VK_B, false);
   }
 
   public void addListener(GamePanel panel) {
@@ -211,6 +278,11 @@ public class Player {
         case KeyEvent.VK_LEFT -> keyMap.put(KeyEvent.VK_LEFT, true);
         case KeyEvent.VK_RIGHT -> keyMap.put(KeyEvent.VK_RIGHT, true);
         case KeyEvent.VK_SPACE -> keyMap.put(KeyEvent.VK_SPACE, true);
+        case KeyEvent.VK_B -> {
+          keyMap.put(KeyEvent.VK_B, true);
+          upgradePressed = true;
+        }
+        case KeyEvent.VK_R -> restartPressed = true;
       }
     }
 
@@ -222,6 +294,7 @@ public class Player {
         case KeyEvent.VK_LEFT -> keyMap.put(KeyEvent.VK_LEFT, false);
         case KeyEvent.VK_RIGHT -> keyMap.put(KeyEvent.VK_RIGHT, false);
         case KeyEvent.VK_SPACE -> keyMap.put(KeyEvent.VK_SPACE, false);
+        case KeyEvent.VK_B -> keyMap.put(KeyEvent.VK_B, false);
       }
     }
   }

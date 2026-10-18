@@ -3,6 +3,7 @@ import java.awt.event.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Random;
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -11,6 +12,8 @@ public class GamePanel extends JPanel implements ActionListener {
 
   private Player player;
   private ResourceManager resourceManager;
+  private Base base;
+  private EnemyManager enemyManager;
   // Class variables
   BufferedImage stoneImage;
   BufferedImage oreImage;
@@ -30,6 +33,7 @@ public class GamePanel extends JPanel implements ActionListener {
   double playerDy = 0;
 
   long time;
+  long lastMineTime;
 
   Timer timer;
 
@@ -42,18 +46,61 @@ public class GamePanel extends JPanel implements ActionListener {
     player = new Player();
     player.addListener(this);
     resourceManager = new ResourceManager();
+    base = new Base();
+    enemyManager = new EnemyManager();
 
     loadTextures();
     startGame();
   }
 
   public void loadTextures() {
-    try {
-      stoneImage = ImageIO.read(new File("assets/stoneTexture.png"));
-      oreImage = ImageIO.read(new File("assets/oreTexture.png"));
-    } catch (IOException e) {
-      e.printStackTrace();
+    stoneImage = loadImage("stoneTexture.png");
+    oreImage = loadImage("oreTexture.png");
+    if (stoneImage == null) {
+      stoneImage = makeFallbackTexture(new Color(118, 128, 142), new Color(72, 82, 96));
     }
+    if (oreImage == null) {
+      oreImage = makeFallbackTexture(new Color(28, 22, 18), new Color(220, 110, 30));
+    }
+  }
+
+  private BufferedImage loadImage(String fileName) {
+    String[] classpathPaths = {"/" + fileName, "/assets/" + fileName, fileName, "assets/" + fileName};
+    for (String path : classpathPaths) {
+      try (InputStream in = GamePanel.class.getResourceAsStream(path)) {
+        if (in != null) {
+          return ImageIO.read(in);
+        }
+      } catch (IOException ignored) {
+      }
+    }
+
+    File dir = new File(System.getProperty("user.dir"));
+    for (int i = 0; i < 6 && dir != null; i++) {
+      File file = new File(dir, "assets/" + fileName);
+      if (file.isFile()) {
+        try {
+          return ImageIO.read(file);
+        } catch (IOException ignored) {
+        }
+      }
+      dir = dir.getParentFile();
+    }
+    System.err.println("Could not load texture: " + fileName);
+    return null;
+  }
+
+  private BufferedImage makeFallbackTexture(Color base, Color accent) {
+    BufferedImage img = new BufferedImage(UNIT_SIZE, UNIT_SIZE, BufferedImage.TYPE_INT_RGB);
+    Graphics2D g = img.createGraphics();
+    g.setColor(base);
+    g.fillRect(0, 0, UNIT_SIZE, UNIT_SIZE);
+    g.setColor(accent);
+    g.fillRect(3, 3, 8, 8);
+    g.fillRect(14, 12, 7, 7);
+    g.fillRect(6, 16, 6, 6);
+    g.dispose();
+    return img;
   }
 
   public void startGame() {
@@ -71,6 +118,15 @@ public class GamePanel extends JPanel implements ActionListener {
         map[x][y] = new Block(BlockState.STONE);
       }
     }
+    int hatchGx = UNDERGROUND_WIDTH / 2;
+    for (int x = hatchGx - 1; x <= hatchGx + 1; x++) {
+      for (int y = 0; y <= 1; y++) {
+        if (x >= 0 && x < UNDERGROUND_WIDTH) {
+          map[x][y] = new Block(BlockState.AIR);
+        }
+      }
+    }
+
     int numOfOres = 0;
     while (numOfOres < NUMBER_OF_ORES) {
       int x = rand.nextInt(0, UNDERGROUND_WIDTH);
@@ -95,11 +151,17 @@ public class GamePanel extends JPanel implements ActionListener {
 
   public void draw(Graphics g) {
     drawUnderground(g);
-    drawBase(g);
+    drawFloor(g);
+    base.draw(g);
     drawGrid(g);
     resourceManager.draw(g);
+    enemyManager.draw(g);
     player.draw(g);
-    drawResourceCounter(g);
+    base.drawHud(g, player.getCollectedResources());
+    drawWave(g);
+    if (base.isDestroyed()) {
+      drawGameOver(g);
+    }
   }
 
   public void drawUnderground(Graphics g) {
@@ -108,12 +170,17 @@ public class GamePanel extends JPanel implements ActionListener {
       for (int y = 0; y < UNDERGROUND_HEIGHT; y++) {
         int xPos = x * UNIT_SIZE;
         int yPos = SCREEN_WIDTH / 2 + y * UNIT_SIZE;
-        Image img = stoneImage;
-        if (undergroundMap[x][y].getState() == BlockState.ORE) img = oreImage;
-        else if (undergroundMap[x][y].getState() == BlockState.AIR)
-          continue; // Ignore if air (background)
-
-        g.drawImage(img, xPos, yPos, UNIT_SIZE, UNIT_SIZE, null);
+        BlockState state = undergroundMap[x][y].getState();
+        if (state == BlockState.AIR) {
+          continue;
+        }
+        Image img = state == BlockState.ORE ? oreImage : stoneImage;
+        if (img != null) {
+          g.drawImage(img, xPos, yPos, UNIT_SIZE, UNIT_SIZE, null);
+        } else {
+          g.setColor(state == BlockState.ORE ? new Color(180, 80, 20) : new Color(110, 120, 130));
+          g.fillRect(xPos, yPos, UNIT_SIZE, UNIT_SIZE);
+        }
       }
     }
   }
@@ -142,37 +209,35 @@ public class GamePanel extends JPanel implements ActionListener {
     }
   }
 
-  public void drawResourceCounter(Graphics g) {
-    g.setFont(new Font("Arial", Font.BOLD, Constants.PlayerConstants.RESOURCE_FONT_SIZE));
-    g.setColor(Color.BLACK);
-    g.drawString(
-        "Collected Resources: " + player.getCollectedResources(),
-        Constants.PlayerConstants.RESOURCE_COUNTER_X,
-        Constants.PlayerConstants.RESOURCE_COUNTER_Y);
+  public void drawFloor(Graphics g) {
+    int surfaceY = Constants.MapConstants.SURFACE_Y;
+    int hatchLeft = Constants.MapConstants.DOME_X + 40;
+    int hatchRight = Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH - 40;
+    int thickness = Constants.MapConstants.FLOOR_THICKNESS;
+
+    g.setColor(new Color(70, 78, 88));
+    g.fillRect(0, surfaceY - thickness / 2, hatchLeft, thickness);
+    g.fillRect(hatchRight, surfaceY - thickness / 2, SCREEN_WIDTH - hatchRight, thickness);
+
+    g.setColor(new Color(40, 32, 24));
+    g.fillRect(hatchLeft, surfaceY - 2, hatchRight - hatchLeft, 4);
   }
 
-  public void drawBase(Graphics g) {
-    Graphics2D g2d = (Graphics2D) g;
+  public void drawWave(Graphics g) {
+    g.setFont(new Font("Arial", Font.BOLD, 16));
+    g.setColor(Color.BLACK);
+    String wave = "Wave: " + enemyManager.getWaveNumber();
+    g.drawString(wave, SCREEN_WIDTH - 110, 26);
+  }
 
-    g2d.setStroke(new BasicStroke(3));
-    g2d.setColor(new Color(100, 110, 130)); // Metallic blue-grey
-
-    int x = Constants.MapConstants.DOME_X;
-    int y = Constants.MapConstants.DOME_Y;
-    int w = Constants.MapConstants.DOME_WIDTH;
-    int h = Constants.MapConstants.DOME_HEIGHT;
-
-    // Draw Left Wall
-    g2d.drawLine(x, y, x, y + h);
-
-    // Draw Right Wall
-    g2d.drawLine(x + w, y, x + w, y + h);
-
-    // Draw Top Ceiling
-    g2d.drawLine(x, y, x + w, y);
-
-    // Reset stroke thickness back to default 1px
-    g2d.setStroke(new BasicStroke(1));
+  public void drawGameOver(Graphics g) {
+    g.setColor(new Color(0, 0, 0, 140));
+    g.fillRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+    g.setColor(Color.WHITE);
+    g.setFont(new Font("Arial", Font.BOLD, 36));
+    g.drawString("BASE DESTROYED", 130, 260);
+    g.setFont(new Font("Arial", Font.PLAIN, 18));
+    g.drawString("The base is your health. Press R to restart.", 110, 300);
   }
 
   private void checkMiningCollisions() {
@@ -308,13 +373,83 @@ public class GamePanel extends JPanel implements ActionListener {
     }
   }
 
+  private boolean playerIsNearBase() {
+    float pCenterX = player.getX() + Constants.PlayerConstants.PLAYER_WIDTH / 2f;
+    float pCenterY = player.getY() + Constants.PlayerConstants.PLAYER_HEIGHT / 2f;
+    float dx = pCenterX - base.getCenterX();
+    float dy = pCenterY - base.getCenterY();
+    return Math.sqrt(dx * dx + dy * dy) <= 140;
+  }
+
+  private boolean isOverBaseHatch() {
+    float pLeft = player.getX();
+    float pRight = player.getX() + Constants.PlayerConstants.PLAYER_WIDTH;
+    float hatchLeft = Constants.MapConstants.DOME_X + 40;
+    float hatchRight = Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH - 40;
+    return pRight > hatchLeft && pLeft < hatchRight;
+  }
+
+  private void checkSurfaceFloor() {
+    float surfaceY = Constants.MapConstants.SURFACE_Y;
+    float pHeight = Constants.PlayerConstants.PLAYER_HEIGHT;
+    boolean usingHatch =
+        isOverBaseHatch()
+            && (player.isKeyPressed(KeyEvent.VK_DOWN) || player.isKeyPressed(KeyEvent.VK_UP));
+
+    if (usingHatch) {
+      return;
+    }
+
+    // Underground: the floor stops you from tunneling back to the surface
+    // except through the base hatch.
+    if (player.getY() >= surfaceY - 0.5f) {
+      if (player.getDy() < 0) {
+        player.setY(Math.max(player.getY(), surfaceY));
+        player.setDy(0);
+      }
+      return;
+    }
+
+    // Above ground: stand on the floor unless dropping through the hatch.
+    if (player.getY() + pHeight > surfaceY) {
+      player.setY(surfaceY - pHeight);
+      if (player.getDy() > 0) {
+        player.setDy(0);
+      }
+    }
+  }
+
+  private void restartGame() {
+    player.reset();
+    resourceManager = new ResourceManager();
+    base = new Base();
+    enemyManager.reset();
+    initializeUndergroundGrid(undergroundMap);
+  }
+
   private void updateGame() {
+    if (player.consumeRestartPressed()) {
+      restartGame();
+    }
+
+    if (base.isDestroyed()) {
+      return;
+    }
+
+    if (player.consumeUpgradePressed() && playerIsNearBase()) {
+      base.tryUpgrade(player);
+    }
+
     player.updateVelocity();
     checkMiningCollisions();
     checkBaseCollisions();
+    checkSurfaceFloor();
     player.applyMovement();
+    checkSurfaceFloor();
     checkResourcePickup();
     resourceManager.update(undergroundMap);
+    base.update();
+    enemyManager.update(base, player);
   }
 
   @Override

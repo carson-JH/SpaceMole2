@@ -75,8 +75,8 @@ public class ResourceOrb {
     if (y + size > screenHeight) {
       y = screenHeight - size;
       bounceVertical();
-    } else if (y < 0) {
-      y = 0;
+    } else if (y < Constants.MapConstants.SURFACE_Y) {
+      y = Constants.MapConstants.SURFACE_Y;
       bounceVertical();
     }
   }
