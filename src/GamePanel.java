@@ -65,7 +65,9 @@ public class GamePanel extends JPanel implements ActionListener {
   }
 
   private BufferedImage loadImage(String fileName) {
-    String[] classpathPaths = {"/" + fileName, "/assets/" + fileName, fileName, "assets/" + fileName};
+    String[] classpathPaths = {
+      "/" + fileName, "/assets/" + fileName, fileName, "assets/" + fileName
+    };
     for (String path : classpathPaths) {
       try (InputStream in = GamePanel.class.getResourceAsStream(path)) {
         if (in != null) {
@@ -240,6 +242,80 @@ public class GamePanel extends JPanel implements ActionListener {
     g.drawString("The base is your health. Press R to restart.", 110, 300);
   }
 
+  //  private void checkMiningCollisions() {
+  //    // 1. Predict player bounding box for next frame
+  //    float nextX = player.getX() + player.getDx();
+  //    float nextY = player.getY() + player.getDy();
+  //
+  //    int minGridX = (int) Math.floor(nextX / Constants.MapConstants.UNIT_SIZE);
+  //    int maxGridX =
+  //        (int)
+  //            Math.floor(
+  //                (nextX + Constants.PlayerConstants.PLAYER_WIDTH - 1)
+  //                    / Constants.MapConstants.UNIT_SIZE);
+  //
+  //    int minGridY =
+  //        (int)
+  //            Math.floor(
+  //                (nextY - (Constants.MapConstants.SCREEN_HEIGHT / 2))
+  //                    / Constants.MapConstants.UNIT_SIZE);
+  //    int maxGridY =
+  //        (int)
+  //            Math.floor(
+  //                (nextY
+  //                        + Constants.PlayerConstants.PLAYER_HEIGHT
+  //                        - 1
+  //                        - (Constants.MapConstants.SCREEN_HEIGHT / 2))
+  //                    / Constants.MapConstants.UNIT_SIZE);
+  //
+  //    boolean hitBlock = false;
+  //
+  //    for (int gx = minGridX; gx <= maxGridX; gx++) {
+  //      for (int gy = minGridY; gy <= maxGridY; gy++) {
+  //        if (gx >= 0 && gx < UNDERGROUND_WIDTH && gy >= 0 && gy < UNDERGROUND_HEIGHT) {
+  //          Block block = undergroundMap[gx][gy];
+  //
+  //          if (block.getState() == BlockState.AIR) continue;
+  //
+  //          // compute block position in screen coords (same as draw)
+  //          float blockX = gx * Constants.MapConstants.UNIT_SIZE;
+  //          float blockY =
+  //              (Constants.MapConstants.SCREEN_HEIGHT / 2) + gy *
+  // Constants.MapConstants.UNIT_SIZE;
+  //          float playerCenterX = nextX + Constants.PlayerConstants.PLAYER_WIDTH / 2f;
+  //          float playerCenterY = nextY + Constants.PlayerConstants.PLAYER_HEIGHT / 2f;
+  //          float blockCenterX = blockX + Constants.MapConstants.UNIT_SIZE / 2f;
+  //          float blockCenterY = blockY + Constants.MapConstants.UNIT_SIZE / 2f;
+  //
+  //          float dx = blockCenterX - playerCenterX;
+  //          float dy = blockCenterY - playerCenterY;
+  //
+  //          int requiredKey;
+  //          if (Math.abs(dx) > Math.abs(dy)) {
+  //            requiredKey = dx > 0 ? KeyEvent.VK_RIGHT : KeyEvent.VK_LEFT;
+  //          } else {
+  //            requiredKey = dy > 0 ? KeyEvent.VK_DOWN : KeyEvent.VK_UP;
+  //          }
+  //
+  //          if (!player.isKeyPressed(requiredKey)) {
+  //            continue;
+  //          }
+  //
+  //          BlockState before = block.getState();
+  //          block.takeDamage(1);
+  //          if (before == BlockState.ORE && block.getState() == BlockState.AIR) {
+  //            resourceManager.spawnFromBrokenOre(gx, gy);
+  //          }
+  //          hitBlock = true;
+  //        }
+  //      }
+  //    }
+  //
+  //    if (hitBlock) {
+  //      player.interact();
+  //    }
+  //  }
+
   private void checkMiningCollisions() {
     // 1. Predict player bounding box for next frame
     float nextX = player.getX() + player.getDx();
@@ -255,7 +331,7 @@ public class GamePanel extends JPanel implements ActionListener {
     int minGridY =
         (int)
             Math.floor(
-                (nextY - (Constants.MapConstants.SCREEN_HEIGHT / 2))
+                (nextY - (Constants.MapConstants.SCREEN_HEIGHT / 2f))
                     / Constants.MapConstants.UNIT_SIZE);
     int maxGridY =
         (int)
@@ -263,7 +339,7 @@ public class GamePanel extends JPanel implements ActionListener {
                 (nextY
                         + Constants.PlayerConstants.PLAYER_HEIGHT
                         - 1
-                        - (Constants.MapConstants.SCREEN_HEIGHT / 2))
+                        - (Constants.MapConstants.SCREEN_HEIGHT / 2f))
                     / Constants.MapConstants.UNIT_SIZE);
 
     boolean hitBlock = false;
@@ -275,10 +351,9 @@ public class GamePanel extends JPanel implements ActionListener {
 
           if (block.getState() == BlockState.AIR) continue;
 
-          // compute block position in screen coords (same as draw)
           float blockX = gx * Constants.MapConstants.UNIT_SIZE;
           float blockY =
-              (Constants.MapConstants.SCREEN_HEIGHT / 2) + gy * Constants.MapConstants.UNIT_SIZE;
+              (Constants.MapConstants.SCREEN_HEIGHT / 2f) + gy * Constants.MapConstants.UNIT_SIZE;
           float playerCenterX = nextX + Constants.PlayerConstants.PLAYER_WIDTH / 2f;
           float playerCenterY = nextY + Constants.PlayerConstants.PLAYER_HEIGHT / 2f;
           float blockCenterX = blockX + Constants.MapConstants.UNIT_SIZE / 2f;
@@ -288,16 +363,39 @@ public class GamePanel extends JPanel implements ActionListener {
           float dy = blockCenterY - playerCenterY;
 
           int requiredKey;
+
+          // SNAP TO BOUNDARY: Treat the block as a solid wall before attempting to mine it
           if (Math.abs(dx) > Math.abs(dy)) {
             requiredKey = dx > 0 ? KeyEvent.VK_RIGHT : KeyEvent.VK_LEFT;
+
+            // Snap X position to the edge of the block
+            if (dx > 0) {
+              player.setX(blockX - Constants.PlayerConstants.PLAYER_WIDTH);
+            } else {
+              player.setX(blockX + Constants.MapConstants.UNIT_SIZE);
+            }
+            player.setDx(0);
+            nextX = player.getX(); // Update prediction so we don't double-snap inside the loop
+
           } else {
             requiredKey = dy > 0 ? KeyEvent.VK_DOWN : KeyEvent.VK_UP;
+
+            // Snap Y position to the edge of the block
+            if (dy > 0) {
+              player.setY(blockY - Constants.PlayerConstants.PLAYER_HEIGHT);
+            } else {
+              player.setY(blockY + Constants.MapConstants.UNIT_SIZE);
+            }
+            player.setDy(0);
+            nextY = player.getY(); // Update prediction so we don't double-snap inside the loop
           }
 
+          // If they aren't actively pushing into the block, stop here (acts as a solid wall)
           if (!player.isKeyPressed(requiredKey)) {
             continue;
           }
 
+          // Proceed with mining logic
           BlockState before = block.getState();
           block.takeDamage(1);
           if (before == BlockState.ORE && block.getState() == BlockState.AIR) {

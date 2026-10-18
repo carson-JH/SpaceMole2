@@ -15,6 +15,7 @@ public class Constants {
     public static final int RESOURCE_COUNTER_Y = 26;
     public static final int PLAYER_CONTACT_DAMAGE = 6;
     public static final int PLAYER_CONTACT_COOLDOWN_MS = 400;
+    public static final float PLAYER_INTERACT_KNOCK = 2.8f;
   }
 
   public static class MapConstants {

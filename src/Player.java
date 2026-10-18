@@ -183,7 +183,7 @@ public class Player {
   }
 
   public void interact() {
-    float knock = 1.2f;
+    float knock = Constants.PlayerConstants.PLAYER_INTERACT_KNOCK;
     switch (direction) {
       case 0 -> Dy = knock;
       case 180 -> Dy = -knock;
