@@ -120,6 +120,20 @@ public class GamePanel extends JPanel implements ActionListener {
         map[x][y] = new Block(BlockState.STONE);
       }
     }
+    // The entire underside of the base is open so the player can enter/exit
+    // without colliding with the top row of dirt (which was snapping/teleporting them).
+    int baseMinGx =
+        (int) Math.floor(Constants.MapConstants.DOME_X / (float) Constants.MapConstants.UNIT_SIZE);
+    int baseMaxGx =
+        (int)
+            Math.floor(
+                (Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH - 1)
+                    / (float) Constants.MapConstants.UNIT_SIZE);
+    for (int x = baseMinGx; x <= baseMaxGx; x++) {
+      if (x >= 0 && x < UNDERGROUND_WIDTH) {
+        map[x][0] = new Block(BlockState.AIR);
+      }
+    }
     int hatchGx = UNDERGROUND_WIDTH / 2;
     for (int x = hatchGx - 1; x <= hatchGx + 1; x++) {
       for (int y = 0; y <= 1; y++) {
@@ -213,8 +227,8 @@ public class GamePanel extends JPanel implements ActionListener {
 
   public void drawFloor(Graphics g) {
     int surfaceY = Constants.MapConstants.SURFACE_Y;
-    int hatchLeft = Constants.MapConstants.DOME_X + 40;
-    int hatchRight = Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH - 40;
+    int hatchLeft = Constants.MapConstants.DOME_X;
+    int hatchRight = Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH;
     int thickness = Constants.MapConstants.FLOOR_THICKNESS;
 
     g.setColor(new Color(70, 78, 88));
@@ -350,6 +364,8 @@ public class GamePanel extends JPanel implements ActionListener {
           Block block = undergroundMap[gx][gy];
 
           if (block.getState() == BlockState.AIR) continue;
+          // Surface-row tiles under the base are a shaft, not a wall.
+          if (isSurfaceBlockUnderBase(gx, gy)) continue;
 
           float blockX = gx * Constants.MapConstants.UNIT_SIZE;
           float blockY =
@@ -479,40 +495,51 @@ public class GamePanel extends JPanel implements ActionListener {
     return Math.sqrt(dx * dx + dy * dy) <= 140;
   }
 
-  private boolean isOverBaseHatch() {
+  /** True when the player is fully between the base walls (open shaft through the floor). */
+  private boolean isInBaseInterior() {
     float pLeft = player.getX();
     float pRight = player.getX() + Constants.PlayerConstants.PLAYER_WIDTH;
-    float hatchLeft = Constants.MapConstants.DOME_X + 40;
-    float hatchRight = Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH - 40;
-    return pRight > hatchLeft && pLeft < hatchRight;
+    float bLeft = Constants.MapConstants.DOME_X;
+    float bRight = bLeft + Constants.MapConstants.DOME_WIDTH;
+    return pLeft >= bLeft && pRight <= bRight;
+  }
+
+  private boolean isSurfaceBlockUnderBase(int gx, int gy) {
+    if (gy != 0) return false;
+    float blockLeft = gx * Constants.MapConstants.UNIT_SIZE;
+    float blockRight = blockLeft + Constants.MapConstants.UNIT_SIZE;
+    float bLeft = Constants.MapConstants.DOME_X;
+    float bRight = bLeft + Constants.MapConstants.DOME_WIDTH;
+    return blockRight > bLeft && blockLeft < bRight;
   }
 
   private void checkSurfaceFloor() {
     float surfaceY = Constants.MapConstants.SURFACE_Y;
     float pHeight = Constants.PlayerConstants.PLAYER_HEIGHT;
-    boolean usingHatch =
-        isOverBaseHatch()
-            && (player.isKeyPressed(KeyEvent.VK_DOWN) || player.isKeyPressed(KeyEvent.VK_UP));
 
-    if (usingHatch) {
+    // No floor inside the base: only the walls and the roof should block movement.
+    if (isInBaseInterior()) {
       return;
     }
 
-    // Underground: the floor stops you from tunneling back to the surface
-    // except through the base hatch.
-    if (player.getY() >= surfaceY - 0.5f) {
-      if (player.getDy() < 0) {
-        player.setY(Math.max(player.getY(), surfaceY));
-        player.setDy(0);
-      }
-      return;
-    }
+    float y = player.getY();
+    float feet = y + pHeight;
 
-    // Above ground: stand on the floor unless dropping through the hatch.
-    if (player.getY() + pHeight > surfaceY) {
-      player.setY(surfaceY - pHeight);
-      if (player.getDy() > 0) {
-        player.setDy(0);
+    // Overlapping the surface line: snap to the side the player is mostly on.
+    // Fully underground players are left alone so they can still fly/move up in tunnels.
+    if (y < surfaceY && feet > surfaceY) {
+      float overlapAbove = surfaceY - y;
+      float overlapBelow = feet - surfaceY;
+      if (overlapAbove >= overlapBelow) {
+        player.setY(surfaceY - pHeight);
+        if (player.getDy() > 0) {
+          player.setDy(0);
+        }
+      } else {
+        player.setY(surfaceY);
+        if (player.getDy() < 0) {
+          player.setDy(0);
+        }
       }
     }
   }

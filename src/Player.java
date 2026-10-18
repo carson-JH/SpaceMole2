@@ -232,10 +232,15 @@ public class Player {
 
   private boolean checkDownCollision() {
     float footY = y + Constants.PlayerConstants.PLAYER_HEIGHT;
+    boolean inBaseInterior =
+        x >= Constants.MapConstants.DOME_X
+            && x + Constants.PlayerConstants.PLAYER_WIDTH
+                <= Constants.MapConstants.DOME_X + Constants.MapConstants.DOME_WIDTH;
     boolean onSurface =
         y < Constants.MapConstants.SURFACE_Y
             && footY <= Constants.MapConstants.SURFACE_Y + 1.5f
-            && !keyMap.get(KeyEvent.VK_DOWN);
+            && !keyMap.get(KeyEvent.VK_DOWN)
+            && !inBaseInterior;
     if (onSurface) return true;
 
     if (getBlockDirectlyBelow(GamePanel.undergroundMap) == null) return false;
